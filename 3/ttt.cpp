@@ -65,13 +65,13 @@ void doMove(vector<vector<char>>& board, char symbol,int move){
 
 int main(int argc, char* argv[]) {
     if (argc != 2) {
-        cerr << "Error\n";
+        cerr << "Error: not enough arguments- got" << argc << "\n";
         return 1;
     }
     string strategy = argv[1];
     // Validate strategy
     if (strategy.size() != 9 || badArgv(strategy)) {
-        cerr << "Error\n";
+        cerr << "Error: strategy is not in the right format\n";
         return 1;
     }
 
@@ -102,7 +102,7 @@ int main(int argc, char* argv[]) {
             cin >> playerMove;
             // Validate player's move
             if (playerMove < 1 || playerMove > 9 || board[(playerMove - 1) / 3][(playerMove - 1) % 3] != ' ') {
-                cerr << "Error\n";
+                cerr << "Error: player's move:$"<< playerMove <<"$ is incorect\n";
                 return 1;
             }
             // Update the board with the player's move

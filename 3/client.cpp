@@ -8,7 +8,7 @@
 #include <cstring>
 #include <cstdlib>
 
-#define SERVER_PORT 7000
+#define SERVER_PORT 7004
 #define BUFFER_SIZE 1024
 
 void error(const char *msg) {
@@ -16,8 +16,8 @@ void error(const char *msg) {
     exit(EXIT_FAILURE);
 }
 
-int main() {
-    int sockfd;
+int main(int argc, char* argv[]){
+    std::string port = argv[1];    int sockfd;
     struct sockaddr_in server_addr;
     char buffer[BUFFER_SIZE];
 
@@ -29,7 +29,7 @@ int main() {
     memset(&server_addr, 0, sizeof(server_addr));
     server_addr.sin_family = AF_INET;
     server_addr.sin_addr.s_addr = inet_addr("127.0.0.1"); // Assuming server is on the same machine
-    server_addr.sin_port = htons(SERVER_PORT);
+    server_addr.sin_port = htons(std::stoi(port));
 
     // Connect to server
     if (connect(sockfd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
@@ -47,8 +47,10 @@ int main() {
             std::string user_input;
             std::cout << "Your move: ";
             std::getline(std::cin, user_input);
-            send(sockfd, user_input.c_str(), user_input.length(), 0);
-            std::cout << "sent to server!\n";
+            int num = std::stoi(user_input.c_str());
+            size_t bnum = htonl(num);
+            send(sockfd, &bnum, user_input.length(), 0);
+            std::cout << num << bnum << "sent to server!\n";
 
         } else if (n == 0) {
             std::cout << "Connection closed by server." << std::endl;
