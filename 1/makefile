@@ -1,5 +1,18 @@
-ttt: ttt.cpp
-	g++ -std=c++11 -o ttt ttt.cpp
+CC = g++
+CFLAGS = -std=c++11 -fprofile-arcs -ftest-coverage
+LIBS = -lpthread
+OBJECTS = ttt.o
+
+all: ttt
+
+ttt: ttt.o
+	$(CC) $(CFLAGS) -o ttt ttt.o $(LIBS)
+
+ttt.o: ttt.cpp
+	$(CC) $(CFLAGS) -c ttt.cpp
 
 clean:
-	rm -f ttt
+	rm -f ttt *.o *.gcno *.gcda *.gcov
+
+coverage: all
+	gcov $(OBJECTS:.o=.cpp)
