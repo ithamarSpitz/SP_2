@@ -343,7 +343,22 @@ int createTCPClient(string server_port, string client_port) {
         if (bind(sockfd, (struct sockaddr *)&client_addr, sizeof(client_addr)) < 0) {
             error("Bind failed");
         }
+    }else{
+        bool unbound = true;
+        int port = 8000;
+            int p = -1;
+        struct sockaddr_in client_addr = addr(to_string(port), &sockfd, true, false);
+        while(unbound){
+            client_addr = addr(to_string(port), &p, false, false);
+            if (bind(sockfd, (struct sockaddr *)&client_addr, sizeof(client_addr)) < 0) {
+                port++;
+                sleep(1);
+            }else{
+               unbound = false; 
+            }
+        }
     }
+
 
     // Set socket options to reuse the address
     int opt = 1;
@@ -407,7 +422,7 @@ void client(string server_port, string client_port, bool udp_send) {
 int main(int argc, char* argv[]) {
     bool is_server = false, print_out = true;
     bool udp_recv = false, udp_send = false, io_mux = false;
-    string server_port = "8000", command, client_port = "9000";
+    string server_port = "8000", command, client_port = "";
     int timeout = 0;
     for (int i = 1; i < argc - 1; i += 2) {
         std::string cur_arg(argv[i]);

@@ -392,6 +392,20 @@ int createTCPClient(string server_port, string client_port) {
         if (bind(sockfd, (struct sockaddr *)&client_addr, sizeof(client_addr)) < 0) {
             error("Bind failed");
         }
+    }else{
+        bool unbound = true;
+        int port = 8000;
+            int p = -1;
+        struct sockaddr_in client_addr = addr(to_string(port), &sockfd, true, false);
+        while(unbound){
+            client_addr = addr(to_string(port), &p, false, false);
+            if (bind(sockfd, (struct sockaddr *)&client_addr, sizeof(client_addr)) < 0) {
+                port++;
+                sleep(1);
+            }else{
+               unbound = false; 
+            }
+        }
     }
 
     // Set socket options to reuse the address
