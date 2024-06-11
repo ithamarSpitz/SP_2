@@ -3,6 +3,8 @@ CFLAGS = -std=c++11 -fprofile-arcs -ftest-coverage
 LIBS = -lpthread
 OBJECTS = mync.o ttt.o server.o client.o
 
+export PATH := $(PATH)
+
 all: mync ttt server client
 
 mync: mync.o

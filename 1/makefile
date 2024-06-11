@@ -3,6 +3,8 @@ CFLAGS = -std=c++11 -fprofile-arcs -ftest-coverage
 LIBS = -lpthread
 OBJECTS = ttt.o
 
+export PATH := $(PATH)
+
 all: ttt
 
 ttt: ttt.o

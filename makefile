@@ -1,5 +1,7 @@
 SUBDIRS := 1 2 3 4 5 6
 
+export PATH := $(PATH)
+
 .PHONY: all clean coverage
 
 all:
