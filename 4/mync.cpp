@@ -104,11 +104,13 @@ void childP(int pipe_stdin[2],int pipe_stdout[2], string comand){
 void game2client(char buffer[BUFFER_SIZE], int n, int client_sockfd, bool print_out){
         buffer[n] = '\0';
         // Send the game's output to the other side of the connection
-        if (send(client_sockfd, buffer, n, 0) < 0) {
-            error("Socket send failed");
-        }
+
         if (print_out){
             cout << buffer << endl;
+        }else{
+            if (send(client_sockfd, buffer, n, 0) < 0) {
+                error("Socket send failed");
+            }
         }
 }
 
@@ -182,10 +184,13 @@ void parentP(int pipe_stdin[2], int pipe_stdout[2],int parent_sock, int server_s
 
 void server(string input_port, string command,  string output_port, bool print_out, bool udp_recv, int timeout){
     pid_t pid;
+    int server_send_sock;
     int server_recv_sock = 0;
-    int  parent_sock = createTCPServer(output_port);
-    int server_send_sock = getClientSock(parent_sock);
-
+    int  parent_sock;
+    if (output_port != ""){
+        parent_sock = createTCPServer(output_port);
+        server_send_sock = getClientSock(parent_sock);
+    }
     if (udp_recv){
         server_recv_sock = createUDPServer(input_port);
     }else{
