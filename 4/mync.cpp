@@ -64,7 +64,7 @@ int createUDPServer(string port){
     return server_sockfd;
 }
 
-int getClientSock(int server_sockfd, string client_port){
+int getClientSock(int server_sockfd){
     int client_sockfd;
     struct sockaddr_in client_addr;
     socklen_t client_len;
@@ -73,16 +73,8 @@ int getClientSock(int server_sockfd, string client_port){
     if ((client_sockfd = accept(server_sockfd, (struct sockaddr *)&client_addr, &client_len)) < 0) {
         error("Accept failed");
     }
-    // Convert the expected port to an integer
-    int expected_port = (client_port.empty()) ? 0 : std::stoi(client_port);
-
     // Convert the received port to host byte order
     int received_port = ntohs(client_addr.sin_port);
-
-    if (expected_port != 0 && received_port != expected_port) {
-        std::string msg = "Received bad port: " + std::to_string(received_port);
-        error(msg.c_str());
-    }
     return client_sockfd;
 }
 
@@ -132,7 +124,7 @@ void handleTimeout(int signum) {
     error("Timeout occurred!");
 }
 
-void parentP(int pipe_stdin[2], int pipe_stdout[2],int parent_sock, int server_send_sock, int server_recv_sock, bool print_out, bool udp_recv, string client_port, int timeout){
+void parentP(int pipe_stdin[2], int pipe_stdout[2],int parent_sock, int server_send_sock, int server_recv_sock, bool print_out, bool udp_recv, int timeout){
 // Parent process
         close(pipe_stdin[0]);
         close(pipe_stdout[1]);
@@ -156,9 +148,10 @@ void parentP(int pipe_stdin[2], int pipe_stdout[2],int parent_sock, int server_s
                 // Set up the alarm and signal handler for timeout
                 signal(SIGALRM, handleTimeout);
                 alarm(timeout);
-                
-                n = recvfrom(server_recv_sock, &net_num, sizeof(net_num), 0,(struct sockaddr*)&cliAddr, (socklen_t*)&len);
-                
+                char net_c;
+                n = recvfrom(server_recv_sock, &net_c, sizeof(net_num), 0,(struct sockaddr*)&cliAddr, (socklen_t*)&len);
+                net_num = net_c - '0';
+                net_num = htonl(net_num);
                 // Disable the alarm after recvfrom completes
                 alarm(0);
                 int num = ntohl(net_num); // Convert from network byte order to host byte order
@@ -167,7 +160,12 @@ void parentP(int pipe_stdin[2], int pipe_stdout[2],int parent_sock, int server_s
                 strcpy(cstr, move_str.c_str());
                 //tcp works, but udp doesnt get to receiving anything
             }else{
-                n = recv(server_recv_sock, &net_num, sizeof(net_num), 0);
+                //////
+                char net_c;
+                n = recv(server_recv_sock, &net_c, sizeof(net_num), 0);
+                net_num = net_c - '0';
+                net_num = htonl(net_num);
+
             }
             if (n > 0) {
                 client2game(pipe_stdin, net_num);
@@ -182,27 +180,35 @@ void parentP(int pipe_stdin[2], int pipe_stdout[2],int parent_sock, int server_s
         close(parent_sock);
 }
 
-void server(string server_port, string command,  string client_port, bool print_out, bool udp_recv, int timeout){
+void server(string input_port, string command,  string output_port, bool print_out, bool udp_recv, int timeout){
     pid_t pid;
-    int server_recv_sock;
-    int  parent_sock = createTCPServer(server_port);
-    int server_send_sock = getClientSock(parent_sock, client_port);
+    int server_recv_sock = 0;
+    int  parent_sock = createTCPServer(output_port);
+    int server_send_sock = getClientSock(parent_sock);
+
     if (udp_recv){
-        server_recv_sock = createUDPServer(server_port);
+        server_recv_sock = createUDPServer(input_port);
     }else{
-        server_recv_sock = server_send_sock;
+        if(output_port != input_port){
+            int  parent_out_sock = createTCPServer(input_port);
+            server_recv_sock = getClientSock(parent_out_sock);
+        }else{
+            server_recv_sock = server_send_sock;
+        }
     }
-    int pipe_stdin[2], pipe_stdout[2];
-    if (pipe(pipe_stdin) == -1 || pipe(pipe_stdout) == -1) {
-        error("Pipe failed");
-    }
-    if ((pid = fork()) == -1) {
-        error("Fork failed");
-    }
-    if (pid == 0) {
-        childP(pipe_stdin, pipe_stdout, command);
-    } else {
-        parentP(pipe_stdin, pipe_stdout,parent_sock ,server_send_sock, server_recv_sock, print_out, udp_recv, client_port, timeout);
+    if (server_recv_sock){
+        int pipe_stdin[2], pipe_stdout[2];
+        if (pipe(pipe_stdin) == -1 || pipe(pipe_stdout) == -1) {
+            error("Pipe failed");
+        }
+        if ((pid = fork()) == -1) {
+            error("Fork failed");
+        }
+        if (pid == 0) {
+            childP(pipe_stdin, pipe_stdout, command);
+        } else {
+            parentP(pipe_stdin, pipe_stdout,parent_sock ,server_send_sock, server_recv_sock, print_out, udp_recv, timeout);
+        }
     }
 }
 
@@ -220,12 +226,13 @@ void send2server(string buf, int sockfd, bool udp, string server_port){
     }
     int num = stoi(user_input);
     int net_num = htonl(num); // Convert to network byte order
+    char c_num = user_input[0];
     if(udp){
         int p = -1;
         struct sockaddr_in server_addr = addr(server_port, &p, true, true);        
-        sendto(sockfd, &net_num, sizeof(net_num), 0, (struct sockaddr *)&server_addr, sizeof(server_addr));
+        sendto(sockfd, &c_num, sizeof(c_num), 0, (struct sockaddr *)&server_addr, sizeof(server_addr));
     }else{
-        send(sockfd, &net_num, sizeof(net_num), 0);
+        send(sockfd, &c_num, sizeof(c_num), 0);
     }
 }
 
@@ -277,17 +284,23 @@ int createUDPClient(string client_port){
 }
 
 
-void sendNrecv(int sock_send, int sock_recv, bool udp_send, string server_port){
+void sendNrecv(int sock_send, int sock_recv, bool udp_send, string server_port, bool print_out, bool send){
     char buffer[BUFFER_SIZE];
     while (true) {
         // Receive message from the server (game's output)
         ssize_t n;
-        n = recv(sock_recv, buffer, sizeof(buffer) - 1, 0);
+        if(print_out){
+            n = recv(sock_recv, buffer, sizeof(buffer) - 1, 0);
+        }
         if (n > 0) {
-            buffer[n] = '\0';
-            cout << buffer;
+            if(print_out){
+                buffer[n] = '\0';
+                cout << buffer;
+            }
             string buf(buffer);
-            send2server(buf, sock_send, udp_send, server_port);
+            if (send){
+                send2server(buf, sock_send, udp_send, server_port);
+            }
         } else if (n == 0) {
             cout << "Connection closed by server." << endl;
             break;
@@ -297,16 +310,30 @@ void sendNrecv(int sock_send, int sock_recv, bool udp_send, string server_port){
     }
 }
 
-void client(string server_port, string client_port, bool udp_send){
+void client(string server_port, string client_port, bool udp_send, bool print_out, bool send){
     int sock_send;
     int sock_recv;
-    sock_recv = createTCPClient(server_port, client_port);
+    if(print_out||!udp_send){
+        sock_recv = createTCPClient(client_port, "");
+    }
     if (udp_send){
         sock_send = createUDPClient("9005");
     }else{
-        sock_send = sock_recv;
+        if(print_out){   
+            if(client_port != server_port) {
+                sock_send = createTCPClient(server_port, "");
+            }else{
+                sock_send = sock_recv;
+            }
+        }else{
+            if(client_port != server_port) {
+                sock_send = createTCPClient(server_port, "");
+            }else{
+                sock_send = sock_recv;
+            }
+        }
     }
-    sendNrecv(sock_send, sock_recv, udp_send, server_port);
+    sendNrecv(sock_send, sock_recv, udp_send, server_port, print_out, send);
     if(sock_recv != sock_send){
         close(sock_send);
     }
@@ -314,11 +341,14 @@ void client(string server_port, string client_port, bool udp_send){
 }
 
 int main(int argc, char* argv[]){
+
     bool is_server = false, print_out = true;
     bool udp_recv = false, udp_send = false;
     string server_port="8000", command, client_port = "";
     int timeout = 0;
+    bool send = false;
     for (int i = 1; i < argc-1; i+=2){
+
         std::string cur_arg(argv[i]);
         std::string next_arg(argv[i+1]);
         if(cur_arg == "-e"){
@@ -330,12 +360,19 @@ int main(int argc, char* argv[]){
                 udp_recv = true;
             }
             server_port = next_arg.substr(4);
+            if(!is_server) {
+                print_out = false;
+                client_port = next_arg.substr(4);
+
+            }
         }
         if(cur_arg == "-b" || cur_arg == "-o"){
+            send = true;
             if (next_arg.find("UDP") != string::npos) {
                 udp_send = true;
             }
-            print_out = false;
+            client_port = next_arg.substr(4);
+            if(is_server) print_out = false;
         }
         if(cur_arg == "-o"){
             if (next_arg.size() >= 4) {
@@ -355,7 +392,7 @@ int main(int argc, char* argv[]){
     if(is_server){
         server(server_port, command, client_port, print_out, udp_recv, timeout);
     }else{
-        client(server_port, client_port, udp_send);
+        client(server_port, client_port, udp_send, !print_out, send);
     }
     return 0;
 }
