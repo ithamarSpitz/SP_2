@@ -4,14 +4,38 @@
 
 using namespace std;
 
+
 // Function to print the Tic-Tac-Toe board
 void printBoard(const vector<vector<char>>& board) {
-    for (const auto& row : board) {
-        for (char cell : row) {
-            cout << cell << " ";
+    std::cout << std::endl;
+    for (int i = 0; i < 3; i++){
+        for (int j = 0; j < 3; j++){
+            if (j == 2){
+                if (board[i][j] == ' ')
+                {
+                    std::cout << "  " << std::endl;
+                }
+                if (board[i][j] == 'X')
+                {
+                    std::cout << "X " << std::endl;
+                }
+                if (board[i][j] == 'O')
+                {
+                    std::cout << "O " << std::endl;
+                }
+                if (i != 2)
+                {
+                    std::cout << "_________" << std::endl << std::endl;
+                }
+            }
+            else {
+                if (board[i][j] == ' ') std::cout << "  | ";
+                if (board[i][j] == 'X') std::cout << "X | ";
+                if (board[i][j] == 'O') std::cout << "O | ";
+            }
         }
-        cout << endl;
     }
+    std::cout << std::endl;
 }
 
 // Function to check if a player has won
@@ -64,15 +88,18 @@ void doMove(vector<vector<char>>& board, char symbol,int move){
 }
 
 int main(int argc, char* argv[]) {
+    
     if (argc != 2) {
-        cerr << "Error\n";
-        return 1;
+        std::cout << "Error: No strategy was provided." << std::endl;
+        exit(1);
     }
+    
+    
     string strategy = argv[1];
     // Validate strategy
     if (strategy.size() != 9 || badArgv(strategy)) {
-        cerr << "Error\n";
-        return 1;
+        std::cout << "Error: Strategy must have nine digits." << std::endl;
+        exit(1);
     }
 
     vector<vector<char>> board(3, vector<char>(3, ' '));
@@ -102,8 +129,8 @@ int main(int argc, char* argv[]) {
             cin >> playerMove;
             // Validate player's move
             if (playerMove < 1 || playerMove > 9 || board[(playerMove - 1) / 3][(playerMove - 1) % 3] != ' ') {
-                cerr << "Error\n";
-                return 1;
+                std::cout << "Error: Illegal operation - The place is not available." << std::endl;
+                exit(1);
             }
             // Update the board with the player's move
             doMove(board,playerSymbol, playerMove);
