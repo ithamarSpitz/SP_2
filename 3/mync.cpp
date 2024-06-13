@@ -181,11 +181,24 @@ void send2server(string buf, int sockfd){
 int createClient(string server_port, string client_port){
     int sockfd;
     struct sockaddr_in server_addr = addr(server_port, &sockfd, false);
-    if(client_port != ""){
-        int p = -1;
-        struct sockaddr_in client_addr = addr(client_port, &p, true);
+    if (client_port != "") {
+        struct sockaddr_in client_addr = addr(client_port, &sockfd, true);
         if (bind(sockfd, (struct sockaddr *)&client_addr, sizeof(client_addr)) < 0) {
             error("Bind failed");
+        }
+    }else{
+        bool unbound = true;
+        int port = 8000;
+            int p = -1;
+        struct sockaddr_in client_addr = addr(to_string(port), &sockfd, true);
+        while(unbound){
+            client_addr = addr(to_string(port), &p, false);
+            if (bind(sockfd, (struct sockaddr *)&client_addr, sizeof(client_addr)) < 0) {
+                port++;
+                sleep(1);
+            }else{
+               unbound = false; 
+            }
         }
     }
     // Connect to server

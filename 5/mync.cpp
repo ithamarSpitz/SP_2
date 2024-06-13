@@ -184,56 +184,108 @@ void parentP(int pipe_stdin[2], int pipe_stdout[2], int parent_sock, int server_
     close(parent_sock);
 }
 
-void handleClient(int client_sock, string command, bool print_out) {
+void handle_client(int client_sockfd, const string &command) {
+    pid_t pid;
     int pipe_stdin[2], pipe_stdout[2];
     if (pipe(pipe_stdin) == -1 || pipe(pipe_stdout) == -1) {
         error("Pipe failed");
     }
-    pid_t pid = fork();
-    if (pid == -1) {
+    if ((pid = fork()) == -1) {
         error("Fork failed");
-    } else if (pid == 0) {
-        // Child process
+    }
+    if (pid == 0) {
         childP(pipe_stdin, pipe_stdout, command);
     } else {
-        // Parent process
-        parentP(pipe_stdin, pipe_stdout, client_sock, client_sock, client_sock, print_out, false, "", 0);
+        close(pipe_stdin[0]);
+        close(pipe_stdout[1]);
+
+        char buffer[BUFFER_SIZE];
+        ssize_t n;
+
+        while (true) {
+            n = read(pipe_stdout[0], buffer, sizeof(buffer) - 1);
+            if (n > 0) {
+                buffer[n] = '\0';
+                if (send(client_sockfd, buffer, n, 0) < 0) {
+                    error("Socket send failed");
+                }
+            } else if (n == 0) {
+                break;
+            }
+
+            n = recv(client_sockfd, buffer, sizeof(buffer) - 1, 0);
+            if (n > 0) {
+                buffer[n] = '\0';
+                if (write(pipe_stdin[1], buffer, n) < 0) {
+                    error("Pipe write failed");
+                }
+            }
+        }
+
+        close(pipe_stdin[1]);
+        close(pipe_stdout[0]);
+        close(client_sockfd);
+    }
+}
+
+void server_tcp_mux(const string &port, const string &command) {
+    cout << " mux" << endl;
+    int server_sockfd = createTCPServer(port);
+    vector<int> client_sockets;
+    fd_set readfds;
+
+    while (true) {
+        FD_ZERO(&readfds);
+        FD_SET(server_sockfd, &readfds);
+        int max_sd = server_sockfd;
+
+        for (int client_sock : client_sockets) {
+            FD_SET(client_sock, &readfds);
+            if (client_sock > max_sd) {
+                max_sd = client_sock;
+            }
+        }
+
+        int activity = select(max_sd + 1, &readfds, NULL, NULL, NULL);
+        if (activity < 0 && errno != EINTR) {
+            error("select error");
+        }
+
+        if (FD_ISSET(server_sockfd, &readfds)) {
+            int client_sockfd;
+            struct sockaddr_in client_addr;
+            socklen_t client_len = sizeof(client_addr);
+            if ((client_sockfd = accept(server_sockfd, (struct sockaddr *)&client_addr, &client_len)) < 0) {
+                error("accept error");
+            }
+
+            client_sockets.push_back(client_sockfd);
+            if (fork() == 0) {
+                handle_client(client_sockfd, command);
+                exit(0);
+            }
+        }
+
+        for (auto it = client_sockets.begin(); it != client_sockets.end();) {
+            if (FD_ISSET(*it, &readfds)) {
+                char buffer[BUFFER_SIZE];
+                int valread = read(*it, buffer, sizeof(buffer));
+                if (valread == 0) {
+                    close(*it);
+                    it = client_sockets.erase(it);
+                } else {
+                    ++it;
+                }
+            } else {
+                ++it;
+            }
+        }
     }
 }
 
 void server(string server_port, string command, string client_port, bool print_out, bool udp_recv, int timeout, bool io_mux) {
     if (io_mux) {
-        int server_sock = createTCPServer(server_port);
-        fd_set active_fd_set, read_fd_set;
-        struct sockaddr_in clientname;
-        socklen_t size;
-
-        FD_ZERO(&active_fd_set);
-        FD_SET(server_sock, &active_fd_set);
-
-        while (true) {
-            read_fd_set = active_fd_set;
-            if (select(FD_SETSIZE, &read_fd_set, NULL, NULL, NULL) < 0) {
-                error("Select failed");
-            }
-            for (int i = 0; i < FD_SETSIZE; ++i) {
-                if (FD_ISSET(i, &read_fd_set)) {
-                    if (i == server_sock) {
-                        int new_client_sock;
-                        size = sizeof(clientname);
-                        new_client_sock = accept(server_sock, (struct sockaddr*)&clientname, &size);
-                        if (new_client_sock < 0) {
-                            error("Accept failed");
-                        }
-                        FD_SET(new_client_sock, &active_fd_set);
-                    } else {
-                        handleClient(i, command, print_out);
-                        FD_CLR(i, &active_fd_set);
-                        close(i);
-                    }
-                }
-            }
-        }
+        server_tcp_mux(server_port, command);
     } else {
         pid_t pid;
         int server_recv_sock;
@@ -291,7 +343,22 @@ int createTCPClient(string server_port, string client_port) {
         if (bind(sockfd, (struct sockaddr *)&client_addr, sizeof(client_addr)) < 0) {
             error("Bind failed");
         }
+    }else{
+        bool unbound = true;
+        int port = 8000;
+            int p = -1;
+        struct sockaddr_in client_addr = addr(to_string(port), &sockfd, true, false);
+        while(unbound){
+            client_addr = addr(to_string(port), &p, false, false);
+            if (bind(sockfd, (struct sockaddr *)&client_addr, sizeof(client_addr)) < 0) {
+                port++;
+                sleep(1);
+            }else{
+               unbound = false; 
+            }
+        }
     }
+
 
     // Set socket options to reuse the address
     int opt = 1;
@@ -355,7 +422,7 @@ void client(string server_port, string client_port, bool udp_send) {
 int main(int argc, char* argv[]) {
     bool is_server = false, print_out = true;
     bool udp_recv = false, udp_send = false, io_mux = false;
-    string server_port = "8000", command, client_port = "9000";
+    string server_port = "8000", command, client_port = "";
     int timeout = 0;
     for (int i = 1; i < argc - 1; i += 2) {
         std::string cur_arg(argv[i]);
@@ -377,9 +444,7 @@ int main(int argc, char* argv[]) {
             if (next_arg.find("TCP") != string::npos) {
                 server_port = next_arg.substr(next_arg.size()-4);
             }  
-            if (next_arg.find("MUX") != string::npos) {
-                io_mux = true;
-            }
+
             print_out = false;
         }
         if (cur_arg == "-o") {
@@ -395,6 +460,9 @@ int main(int argc, char* argv[]) {
         }
         if (cur_arg == "-t") {
             timeout = stoi(next_arg);
+        }
+        if (next_arg.find("MUX") != string::npos) {
+                io_mux = true;
         }
     }
     if (is_server) {
