@@ -1,0 +1,53 @@
+/*TCP:---------------------------------------------------------------
+/*To get input from client to server and print output to server:
+ terminal server: ./mync -e “ttt 123456789” -i TCPS4450
+ terminal client: nc localhost 4450
+*/
+
+/*To get input from client to server and print output to client:
+terminal server: ./mync -e “ttt 123456789” -o TCPS4450
+terminal client: nc localhost 4450
+*/
+
+/*To get input from client to server and print output to server & client:
+terminal server: ./mync -e “ttt 123456789” -b TCPS4450
+terminal client: nc localhost 4450
+*/
+
+/*To get input from client to server at port (E.g. 4050) and print output to client at anater port (E.g. 4455):
+terminal server: ./mync -e “ttt 123456789” -i TCPS4050 -o TCPClocalhost,4455
+terminal client input: nc localhost 4050
+terminal client output: nc localhost 4455
+*/
+
+/*To get input from client to server at port (E.g. 4050) and print output to client at anater port (E.g. 4455):
+terminal server: ./mync -e “ttt 123456789” -i TCPS4050 -o TCPC4455
+terminal client input: nc localhost 4050
+terminal client output: nc localhost 4455
+*/
+
+/*---------------------------------------------------------------------------------------*/
+
+/*UDP:---------------------------------------------------------------------------------------
+/*To get input from client to server and print output to server:
+ terminal server: ./mync -e “ttt 123456789” -i UDPS4050 -t 10
+ terminal client: nc localhost 4050
+*/
+
+
+/*To get input from client to server at port (E.g. 4050) and print output to client at anater port (E.g. 4455):
+terminal server: ./mync -e “ttt 123456789” -i TCPS4050 -o UDPS4455 -t 100
+terminal client input: nc localhost 4050
+terminal client output: nc localhost 4455
+*/
+/*---------------------------------------------------------------------------------------*/
+
+
+/*UNIX:---------------------------------------------------------------------------------------
+/*To get input from client to server and print output to server:
+ terminal server: ./mync UDSSS /tmp/unix_socket_path -e "ttt 123456789"
+ terminal client: ./mync UDSCS /tmp/unix_socket_path
+*/
+
+/*---------------------------------------------------------------------------------------*/
+
